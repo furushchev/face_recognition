@@ -103,7 +103,7 @@ public:
     //check if the name of the person has been provided for the add-face-images goal  
     if(goal->order_id == 2 && goal->order_argument.empty() ) 
     {
-      ROS_INFO("No name has been provided for the add_person_images goal");
+      ROS_ERROR("No name has been provided for the add_person_images goal");
       as_.setPreempted();
       return;
     }
@@ -150,7 +150,7 @@ public:
 	  if(as_.isActive())	
           { 
              as_.setPreempted();
-             ROS_INFO("Goal %d is preempted",goal_id_);
+             ROS_DEBUG("Goal %d is preempted",goal_id_);
           } 
           goal_id_ = -99;
           mutex_.unlock();       
@@ -197,7 +197,7 @@ public:
     if(!mutex_.try_lock()) return;    
     if(as_.isPreemptRequested())    
     {
-       ROS_INFO("Goal %d is preempted",goal_id_);
+       ROS_DEBUG("Goal %d is preempted",goal_id_);
        as_.setPreempted();
        mutex_.unlock(); return;
     }  
@@ -215,7 +215,7 @@ public:
     {
       ROS_ERROR("cv_bridge exception: %s", e.what());
       as_.setPreempted();
-      ROS_INFO("Goal %d is preempted",goal_id_);
+      ROS_DEBUG("Goal %d is preempted",goal_id_);
       mutex_.unlock();
       return;
     }
@@ -234,7 +234,7 @@ public:
     // Make sure a valid face was detected.
     if (faceRect.width < 1) 
     {
-      ROS_INFO("No face was detected in the last frame"); 
+      ROS_DEBUG("No face was detected in the last frame"); 
       if(show_screen_flag)
       {
         cvPutText(img, text_image.str().c_str(), cvPoint(10, faceRect.y + 50), &font, textColor);
@@ -258,10 +258,10 @@ public:
     //check again if preempting request is not there!
     if(as_.isPreemptRequested())    
         {
-           ROS_INFO("Goal %d is preempted",goal_id_);
+           ROS_DEBUG("Goal %d is preempted",goal_id_);
            cvReleaseImage(&equalizedImg);cvReleaseImage(&img);  
            as_.setPreempted(); 
-           ROS_INFO("Goal %d is preempted",goal_id_);
+           ROS_DEBUG("Goal %d is preempted",goal_id_);
            mutex_.unlock(); return;
         }
      //goal is add_face_images
@@ -287,7 +287,7 @@ public:
            ros::param::getCached("~add_face_number", add_face_number);
            if(add_face_number<=0)
              {
-               ROS_INFO("add_face_number parameter is Zero, it is Invalid. One face was added anyway!");
+               ROS_WARN("add_face_number parameter is Zero, it is Invalid. One face was added anyway!");
                add_face_number=1;
              } 
            frl.database_updated = false;
@@ -328,9 +328,9 @@ public:
 	 ROS_WARN("Alert: Database is not updated. Please delete \"facedata.xml\" and re-run!"); //AFTER
        if(frl.nEigens < 1) 
        {
-          ROS_INFO("NO database available, goal is Aborted");
+          ROS_WARN("NO database available, goal is Aborted");
           cvReleaseImage(&equalizedImg);cvReleaseImage(&img);  
-          ROS_INFO("Goal %d is Aborted",goal_id_);
+          ROS_DEBUG("Goal %d is Aborted",goal_id_);
           as_.setAborted(); 
           mutex_.unlock(); return;
        }
