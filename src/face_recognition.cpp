@@ -67,26 +67,27 @@ public:
     as_.start();
     //if the number of persons in the training file is not equal with the number of persons in the trained database, the database is not updated and user should be notified to retrain the database if new tarining images are to be considered.
 
+    cvInitFont(&font,CV_FONT_HERSHEY_PLAIN, 1.0, 4.0, 2,2,CV_AA);  
+    textColor = CV_RGB(0,255,255);	// light blue text
     if (show_screen_flag) {
       cvNamedWindow("Input", CV_WINDOW_AUTOSIZE); 	// output screen
-      cvInitFont(&font,CV_FONT_HERSHEY_PLAIN, 1.0, 4.0, 2,2,CV_AA);  
-      textColor = CV_RGB(0,255,255);	// light blue text
     }
     goal_id_ = -99; 
 
     if(calcNumTrainingPerson("train.txt")!=frl.nPersons)
-    {
-       frl.database_updated=false; 
-       //ROS_INFO("Alert: Database is not updated, You better (re)train from images!");       //BEFORE
-       ROS_WARN("Alert: Database is not updated. Please delete \"facedata.xml\" and re-run!"); //AFTER
-    }
+      {
+        frl.database_updated=false; 
+        //ROS_INFO("Alert: Database is not updated, You better (re)train from images!");       //BEFORE
+        ROS_WARN("Alert: Database is not updated. Please delete \"facedata.xml\" and re-run!"); //AFTER
+      }
     //subscribe to video stream through image transport class
     image_sub_ = it_.subscribe("/camera/image_raw", 1, &FaceRecognition::imageCB, this);
+    debug_img_pub_ = pnh_.advertise<sensor_msgs::Image>("debug_image", 1);
   }
 
   ~FaceRecognition(void)
   {
-     cvDestroyWindow("Input");
+    cvDestroyWindow("Input");
   }
 
 
@@ -94,17 +95,17 @@ public:
   {
     //check to be sure if the goal should be still persuaded
     if( as_.isPreemptRequested() || ros::isShuttingDown() )
-    {
-      as_.setPreempted(); 
-      return;
-    }
+      {
+        as_.setPreempted(); 
+        return;
+      }
     //check if the name of the person has been provided for the add-face-images goal  
     if(goal->order_id == 2 && goal->order_argument.empty() ) 
-    {
-      ROS_INFO("No name has been provided for the add_person_images goal");
-      as_.setPreempted();
-      return;
-    }
+      {
+        ROS_INFO("No name has been provided for the add_person_images goal");
+        as_.setPreempted();
+        return;
+      }
     ros::Rate r(4);
     //Storing the information about the current goal and reseting feedback and result variables  
     goal_argument_ = goal->order_argument;
@@ -116,28 +117,28 @@ public:
     feedback_.confidence.clear();
     goal_id_ = goal->order_id;
     switch(goal_id_)
-    { 
-      //(exit) Goal is to exit
+      { 
+        //(exit) Goal is to exit
       case 4: ROS_INFO("exit request");
-              as_.setSucceeded(result_);
-              r.sleep();
-              ros::shutdown(); 
-              break;
+        as_.setSucceeded(result_);
+        r.sleep();
+        ros::shutdown(); 
+        break;
       case 3:
-          //(train_database) Goal is to (re)train the database from training images
-          if(frl.retrainOnline()) 
-            as_.setSucceeded(result_);
-          else 
-            as_.setAborted(result_);
-          break;
-      //(recognize_once) Goal is to recognize the person in the video stream, succeed when the first person is found
+        //(train_database) Goal is to (re)train the database from training images
+        if(frl.retrainOnline()) 
+          as_.setSucceeded(result_);
+        else 
+          as_.setAborted(result_);
+        break;
+        //(recognize_once) Goal is to recognize the person in the video stream, succeed when the first person is found
       case 0:
-      //(recognize_continuous) Goal is to Continuously recognize persons in the video stream and provide feedback continuously. This goal is persuaded for infinite time
+        //(recognize_continuous) Goal is to Continuously recognize persons in the video stream and provide feedback continuously. This goal is persuaded for infinite time
       case 1:
-      //(add_face_images) Goal is to take a number of(add_face_number) images of a person's face from the video stream and save them as training images 
+        //(add_face_images) Goal is to take a number of(add_face_number) images of a person's face from the video stream and save them as training images 
       case 2:
          
-	 {
+        {
 	  if(goal_id_ == 2)
             add_face_count=0;
           //to synchronize with processes performed in the subscribed function to the video stream (imageCB)
@@ -146,27 +147,46 @@ public:
             r.sleep();
 	  mutex_.lock();
 	  if(as_.isActive())	
-          { 
-             as_.setPreempted();
-             ROS_INFO("Goal %d is preempted",goal_id_);
-          } 
+            { 
+              as_.setPreempted();
+              ROS_INFO("Goal %d is preempted",goal_id_);
+            } 
           goal_id_ = -99;
           mutex_.unlock();       
  	  break;	       
-	 }
+        }
         
-    }
+      }
     goal_id_ = -99; 
-}
+  }
+
+  void showDebugImage(IplImage* img, const sensor_msgs::Image::ConstPtr &imgmsg) {
+    ros::param::getCached("~show_screen_flag", show_screen_flag); 
+    if (show_screen_flag) {
+        cvShowImage("Input", img);
+        cvWaitKey(1);
+    }
+    try {
+      cv_bridge::CvImage msg;
+      msg.header = imgmsg->header;
+      msg.encoding = sensor_msgs::image_encodings::BGR8;
+      msg.image = img;
+      debug_img_pub_.publish(msg.toImageMsg());
+    }
+    catch (cv_bridge::Exception &e) {
+      ROS_ERROR("cv_bridge exception: %s", e.what());
+      return;
+    }
+  }
 
   int calcNumTrainingPerson(const char * filename)
   {
-      FILE * imgListFile = 0;
-      char imgFilename[512];
-      int iFace, nFaces=0;
-      int person_num=0;
-      // open the input file
-      if( !(imgListFile = fopen(filename, "r")) )
+    FILE * imgListFile = 0;
+    char imgFilename[512];
+    int iFace, nFaces=0;
+    int person_num=0;
+    // open the input file
+    if( !(imgListFile = fopen(filename, "r")) )
         {
 	   fprintf(stderr, "Can\'t open file %s\n", filename);
 	   return 0;
@@ -228,13 +248,9 @@ public:
     // Make sure a valid face was detected.
     if (faceRect.width < 1) 
     {
-      ROS_INFO("No face was detected in the last frame"); 
-      if(show_screen_flag)
-      {
-        cvPutText(img, text_image.str().c_str(), cvPoint(10, faceRect.y + 50), &font, textColor);
-        cvShowImage("Input", img);
-        cvWaitKey(1);
-      }
+      ROS_INFO_THROTTLE(1, "No face was detected in the last frame"); 
+      cvPutText(img, text_image.str().c_str(), cvPoint(10, faceRect.y + 50), &font, textColor);
+      showDebugImage(img, msg);
       cvReleaseImage( &greyImg );cvReleaseImage(&img);
       r.sleep(); 
       mutex_.unlock(); return;
@@ -256,8 +272,6 @@ public:
            ROS_INFO("Goal %d is preempted",goal_id_);
            mutex_.unlock(); return;
         }
-     //get the value of show_screen_flag from the parameter server
-     ros::param::getCached("~show_screen_flag", show_screen_flag); 
      //goal is add_face_images
      if( goal_id_==2  )      
      {
@@ -295,11 +309,7 @@ public:
            
            result_.names.push_back(goal_argument_); 
            as_.setSucceeded(result_);
-           if (show_screen_flag)
-           {
-              cvShowImage("Input", img);
-              cvWaitKey(1);
-           }
+           showDebugImage(img, msg);
            cvReleaseImage(&equalizedImg); cvReleaseImage(&img);
            mutex_.unlock(); return;
         }   
@@ -307,7 +317,7 @@ public:
         feedback_.confidence.clear();
         feedback_.names.push_back(goal_argument_);
 //      feedback_.confidence.push_back();
-        as_.publishFeedback(feedback_);     
+        as_.publishFeedback(feedback_);
      }
      //goal is to recognize person in the video stream
      if( goal_id_<2 )      
@@ -368,11 +378,7 @@ public:
        }
     
     }
-    if (show_screen_flag)
-    {
-       cvShowImage("Input", img);
-       cvWaitKey(1);
-    } 
+     showDebugImage(img, msg);
     cvReleaseImage(&equalizedImg);   cvReleaseImage(&img);
     r.sleep();
     mutex_.unlock();
@@ -400,6 +406,7 @@ protected:
   image_transport::ImageTransport it_;
   image_transport::Subscriber image_sub_;
   actionlib::SimpleActionServer<face_recognition::FaceRecognitionAction> as_;
+  ros::Publisher debug_img_pub_;
   int person_number;     //the number of persons in the train file (train.txt)
 };
 
